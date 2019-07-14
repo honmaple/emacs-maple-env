@@ -1,0 +1,21 @@
+* maple-env
+  Isolate emacs dependency environment, idea from [[https://honmaple.me/articles/2018/07/%E5%A6%82%E4%BD%95%E4%BF%9D%E6%8C%81%E4%B8%80%E4%B8%AA%E5%B9%B2%E5%87%80%E7%9A%84%E7%B3%BB%E7%BB%9F.html][如何保持一个干净的系统]]
+
+** How to use?
+   #+begin_src elisp
+     (use-package maple-env
+       :ensure nil
+       :hook (after-init . maple-env-mode)
+       :config
+       (setq maple-env:python-packages
+             '("yapf" "flake8" "isort" "python-language-server")
+             maple-env:golang-packages
+             '("github.com/rogpeppe/godef"
+               "github.com/golang/lint/golint"
+               "github.com/haya14busa/gopkgs/cmd/gopkgs"
+               "golang.org/x/tools/cmd/gopls")
+             maple-env:npm-packages
+             '("js-beautify"))
+       ;; Need call manually when first start emacs
+       (maple-env:init))
+   #+end_src
