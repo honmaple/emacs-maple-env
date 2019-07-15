@@ -30,12 +30,12 @@
   :group 'maple)
 
 (defcustom maple-env:buffer-name "*maple-env*"
-  "Display buffer action."
+  "Maple env buffer name."
   :type 'string
   :group 'maple-env)
 
 (defcustom maple-env:path (expand-file-name "cache/env" user-emacs-directory)
-  "Root env path."
+  "Maple env root path."
   :type 'string
   :group 'maple-env)
 
@@ -135,7 +135,7 @@
      (push (format "%s=%s" "NODE_PATH" maple-env:npm-path) process-environment) ,@body))
 
 (defun maple-env:pip-upgrade(package)
-  "Python pip install PACKAGE."
+  "Python pip upgrade PACKAGE."
   (interactive "P")
   (maple-env:pip
     (maple-env:process
@@ -153,7 +153,7 @@
      package)))
 
 (defun maple-env:go-install(package)
-  "Python pip install PACKAGE."
+  "Golang install PACKAGE."
   (interactive "sGolang package name: ")
   (maple-env:go
     (maple-env:process
@@ -161,7 +161,7 @@
      package)))
 
 (defun maple-env:npm-install(package)
-  "Python pip install PACKAGE."
+  "NPM install PACKAGE."
   (interactive "sNPM package name: ")
   (maple-env:npm
     (maple-env:process
@@ -169,7 +169,7 @@
      package)))
 
 (defun maple-env:init()
-  "Init all env."
+  "Init dependency env."
   (interactive)
   (dolist (package maple-env:python-packages)
     (maple-env:pip-install package))
@@ -190,7 +190,7 @@
   "UnSet environment variable with KEY VALUE."
   (let* ((value (if (listp value) value (list value)))
          (path (split-string (or (getenv key) "") ":"))
-         (path (delete-if (lambda(x) (member x value)) path))
+         (path (cl-delete-if (lambda(x) (member x value)) path))
          (path (delete "" path)))
     (setenv key (mapconcat 'identity path ":"))))
 
@@ -222,7 +222,7 @@
 
 ;;;###autoload
 (define-minor-mode maple-env-mode
-  "Maple env mode"
+  "maple env mode"
   :group      'maple-env
   :global     t
   (if maple-env-mode (maple-env-mode-on) (maple-env-mode-off)))
