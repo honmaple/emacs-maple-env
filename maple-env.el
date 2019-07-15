@@ -54,6 +54,21 @@
   :type 'string
   :group 'maple-env)
 
+(defcustom maple-env:python-command "/usr/bin/pip"
+  "Python pip execute path."
+  :type 'string
+  :group 'maple-env)
+
+(defcustom maple-env:golang-command "go"
+  "Golang execute path."
+  :type 'string
+  :group 'maple-env)
+
+(defcustom maple-env:npm-command "npm"
+  "NPM execute path."
+  :type 'string
+  :group 'maple-env)
+
 (defcustom maple-env:python-packages
   '("yapf" "flake8" "isort" "python-language-server")
   "Python dependency packages."
@@ -102,24 +117,21 @@
   "Execute the pip command in BODY."
   (declare (indent 0) (debug t))
   `(let ((process-environment process-environment)
-         (name "maple-env:pip")
-         (bin "/usr/bin/pip"))
+         (name "maple-env:pip"))
      (push (format "%s=%s" "PYTHONUSERBASE" maple-env:python-path) process-environment) ,@body))
 
 (defmacro maple-env:go (&rest body)
   "Execute the go command in BODY."
   (declare (indent 0) (debug t))
   `(let ((process-environment process-environment)
-         (name "maple-env:go")
-         (bin "go"))
+         (name "maple-env:go"))
      (push (format "%s=%s" "GOPATH" maple-env:golang-path) process-environment) ,@body))
 
 (defmacro maple-env:npm (&rest body)
   "Execute the npm command in BODY."
   (declare (indent 0) (debug t))
   `(let ((process-environment process-environment)
-         (name "maple-env:npm")
-         (bin "npm"))
+         (name "maple-env:npm"))
      (push (format "%s=%s" "NODE_PATH" maple-env:npm-path) process-environment) ,@body))
 
 (defun maple-env:pip-upgrade(package)
@@ -127,7 +139,7 @@
   (interactive "P")
   (maple-env:pip
     (maple-env:process
-     name bin "install" "--user" "--upgrade"
+     name maple-env:python-command "install" "--user" "--upgrade"
      (or package (completing-read
                   "Select python package: "
                   (split-string (shell-command-to-string "/usr/bin/pip list --user --format=freeze") "\n"))))))
@@ -135,17 +147,26 @@
 (defun maple-env:pip-install(package)
   "Python pip install PACKAGE."
   (interactive "sPython package name: ")
-  (maple-env:pip (maple-env:process name bin "install" "--user" package)))
+  (maple-env:pip
+    (maple-env:process
+     name maple-env:python-command "install" "--user"
+     package)))
 
 (defun maple-env:go-install(package)
   "Python pip install PACKAGE."
   (interactive "sGolang package name: ")
-  (maple-env:go (maple-env:process name bin "get" "-u" package)))
+  (maple-env:go
+    (maple-env:process
+     name maple-env:golang-command "get" "-u"
+     package)))
 
 (defun maple-env:npm-install(package)
   "Python pip install PACKAGE."
   (interactive "sNPM package name: ")
-  (maple-env:npm (maple-env:process name bin "install" "-g" "--prefix" maple-env:npm-path package)))
+  (maple-env:npm
+    (maple-env:process
+     name maple-env:npm-command "install" "-g" "--prefix" maple-env:npm-path
+     package)))
 
 (defun maple-env:init()
   "Init all env."
@@ -157,31 +178,47 @@
   (dolist (package maple-env:npm-packages)
     (maple-env:npm-install package)))
 
+(defun maple-env:set(key value)
+  "Set environment variable with KEY VALUE."
+  (let* ((value (if (listp value) value (list value)))
+         (path (split-string (or (getenv key) "") ":"))
+         (path (delete-dups (append path value)))
+         (path (delete "" path)))
+    (setenv key (mapconcat 'identity path ":"))))
+
+(defun maple-env:unset(key value)
+  "UnSet environment variable with KEY VALUE."
+  (let* ((value (if (listp value) value (list value)))
+         (path (split-string (or (getenv key) "") ":"))
+         (path (delete-if (lambda(x) (member x value)) path))
+         (path (delete "" path)))
+    (setenv key (mapconcat 'identity path ":"))))
+
 (defun maple-env-mode-on()
   "Turn on maple-env-mode."
   (interactive)
-  (unless (file-exists-p maple-env:python-path)
-    (make-directory maple-env:python-path t))
-  (unless (file-exists-p maple-env:golang-path)
-    (make-directory maple-env:golang-path t))
-  (unless (file-exists-p maple-env:npm-path)
-    (make-directory maple-env:npm-path t))
-  (setenv "PATH" (format "%s:%s/bin:%s/bin:%s/bin"
-                         (getenv "PATH")
-                         maple-env:python-path
-                         maple-env:golang-path
-                         maple-env:npm-path)))
+  (dolist (path (list maple-env:python-path maple-env:golang-path maple-env:npm-path))
+    (unless (file-exists-p path)
+      (make-directory path t))
+    (add-to-list 'exec-path (format "%s/bin" path)))
+
+  (let* ((path (format "%s/lib" maple-env:python-path))
+         (path (when (file-directory-p path) (car (directory-files path t "^python")))))
+    (when path (maple-env:set "PYTHONPATH" (format "%s/site-packages" path))))
+  (maple-env:set "NODE_PATH" (format "%s/lib/node_modules" maple-env:npm-path))
+  (maple-env:set "GOPATH" maple-env:golang-path))
 
 (defun maple-env-mode-off()
   "Turn off maple-env-mode."
   (interactive)
-  (setenv "PATH" (replace-regexp-in-string
-                  (format ":%s/bin:%s/bin:%s/bin"
-                          maple-env:python-path
-                          maple-env:golang-path
-                          maple-env:npm-path)
-                  ""
-                  (getenv "PATH"))))
+  (dolist (path (list maple-env:python-path maple-env:golang-path maple-env:npm-path))
+    (setq exec-path (remove (format "%s/bin" path) exec-path)))
+
+  (let* ((path (format "%s/lib" maple-env:python-path))
+         (path (when (file-directory-p path) (car (directory-files path t "^python")))))
+    (when path (maple-env:unset "PYTHONPATH" (format "%s/site-packages" path))))
+  (maple-env:unset "NODE_PATH" (format "%s/lib/node_modules" maple-env:npm-path))
+  (maple-env:unset "GOPATH" maple-env:golang-path))
 
 ;;;###autoload
 (define-minor-mode maple-env-mode
