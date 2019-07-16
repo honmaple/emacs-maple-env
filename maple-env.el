@@ -24,6 +24,7 @@
 ;;
 
 ;;; Code:
+(require 'json)
 
 (defgroup maple-env nil
   "Isolate emacs dependency environment."
@@ -93,6 +94,10 @@
 
 (defun maple-env:process(name program &rest program-args)
   "Start process with NAME PROGRAM &REST PROGRAM-ARGS."
+  (with-current-buffer (get-buffer-create maple-env:buffer-name)
+    (insert "\n" (propertize
+                  (string-join (append (list "$" program) program-args) " ")
+                  'face 'font-lock-constant-face) "\n"))
   (let* ((args (append (list name maple-env:buffer-name program) program-args))
          (process (apply 'start-process args)))
     (run-with-timer 3 nil 'maple-env:display process)
@@ -112,6 +117,12 @@
         (if (minibufferp)
             (switch-to-buffer-other-window buf)
           (pop-to-buffer buf))))))
+
+(defun maple-env:json(content)
+  "Json parse from CONTENT."
+  (let* ((json-object-type 'hash-table)
+         (json-key-type 'string))
+    (json-read-from-string content)))
 
 (defmacro maple-env:pip (&rest body)
   "Execute the pip command in BODY."
@@ -134,15 +145,21 @@
          (name "maple-env:npm"))
      (push (format "%s=%s" "NODE_PATH" maple-env:npm-path) process-environment) ,@body))
 
+(defun maple-env:pip-list(&optional prompt)
+  "Python pip list packages with PROMPT."
+  (let* ((packages (split-string
+                    (shell-command-to-string
+                     (format "%s list --user --format=freeze" maple-env:python-command)) "\n"))
+         (packages (mapcar (lambda(x) (cons x (car (split-string x "==")))) packages)))
+    (if prompt (cdr (assoc (completing-read prompt packages nil t) packages)) packages)))
+
 (defun maple-env:pip-upgrade(package)
   "Python pip upgrade PACKAGE."
   (interactive "P")
   (maple-env:pip
     (maple-env:process
      name maple-env:python-command "install" "--user" "--upgrade"
-     (or package (completing-read
-                  "Select python package: "
-                  (split-string (shell-command-to-string "/usr/bin/pip list --user --format=freeze") "\n"))))))
+     (or package (maple-env:pip-list "Upgrade python package: ")))))
 
 (defun maple-env:pip-install(package)
   "Python pip install PACKAGE."
@@ -152,6 +169,14 @@
      name maple-env:python-command "install" "--user"
      package)))
 
+(defun maple-env:pip-uninstall(package)
+  "Python pip uninstall PACKAGE."
+  (interactive "P")
+  (maple-env:pip
+    (maple-env:process
+     name maple-env:python-command "uninstall" "--yes"
+     (or package (maple-env:pip-list "Uninstall python package: ")))))
+
 (defun maple-env:go-install(package)
   "Golang install PACKAGE."
   (interactive "sGolang package name: ")
@@ -160,6 +185,27 @@
      name maple-env:golang-command "get" "-u"
      package)))
 
+(defun maple-env:npm-list(&optional prompt)
+  "NPM list package with PROMPT."
+  (let ((packages (list)))
+    (maphash
+     (lambda(key value)
+       (setq packages (append packages (list (cons (concat key "==" (gethash "version" value)) key)))))
+     (gethash
+      "dependencies"
+      (maple-env:json
+       (shell-command-to-string
+        (format "%s list -g --depth 0 --json --prefix %s" maple-env:npm-command maple-env:npm-path)))))
+    (if prompt (cdr (assoc (completing-read prompt packages nil t) packages)) packages)))
+
+(defun maple-env:npm-upgrade(package)
+  "NPM upgrade PACKAGE."
+  (interactive "P")
+  (maple-env:npm
+    (maple-env:process
+     name maple-env:npm-command "update" "-g" "--prefix" maple-env:npm-path
+     (or package (maple-env:npm-list "Upgrade npm package: ")))))
+
 (defun maple-env:npm-install(package)
   "NPM install PACKAGE."
   (interactive "sNPM package name: ")
@@ -167,6 +213,14 @@
     (maple-env:process
      name maple-env:npm-command "install" "-g" "--prefix" maple-env:npm-path
      package)))
+
+(defun maple-env:npm-uninstall(package)
+  "NPM uninstall PACKAGE."
+  (interactive "P")
+  (maple-env:npm
+    (maple-env:process
+     name maple-env:npm-command "uninstall" "-g" "--prefix" maple-env:npm-path
+     (or package (maple-env:npm-list "Uninstall npm package: ")))))
 
 (defun maple-env:init()
   "Init dependency env."
