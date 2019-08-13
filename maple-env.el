@@ -222,6 +222,12 @@
      name maple-env:npm-command "uninstall" "-g" "--prefix" maple-env:npm-path
      (or package (maple-env:npm-list "Uninstall npm package: ")))))
 
+(defun maple-env:set-path()
+  "Set path after load library."
+  (setq maple-env:python-path (expand-file-name "python" maple-env:path))
+  (setq maple-env:golang-path (expand-file-name "golang" maple-env:path))
+  (setq maple-env:npm-path (expand-file-name "npm" maple-env:path)))
+
 (defun maple-env:init()
   "Init dependency env."
   (interactive)
@@ -251,6 +257,8 @@
 (defun maple-env-mode-on()
   "Turn on maple-env-mode."
   (interactive)
+  (maple-env:set-path)
+
   (dolist (path (list maple-env:python-path maple-env:golang-path maple-env:npm-path))
     (unless (file-exists-p path)
       (make-directory path t))
