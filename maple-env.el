@@ -182,7 +182,15 @@
   (interactive "sGolang package name: ")
   (maple-env:go
     (maple-env:process
-     name maple-env:golang-command "get" "-u"
+     name maple-env:golang-command "get" "-v"
+     package)))
+
+(defun maple-env:go-upgrade(package)
+  "Golang install PACKAGE."
+  (interactive "sGolang package name: ")
+  (maple-env:go
+    (maple-env:process
+     name maple-env:golang-command "get" "-v" "-u"
      package)))
 
 (defun maple-env:npm-list(&optional prompt)
